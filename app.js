@@ -1,6 +1,6 @@
 /**
  * AST Posture Clinic - AI Postural Assessment & Tele-Health Engine
- * Developed by Abiha & Sumaiya | Clinical Lead: Dr. Tahira Nihal
+ * Developed by Abiha GOVT Girls High School Latifabad Unit:6 | Clinical Lead: Dr. Tahira Nihal
  */
 
 // ============================================================================
@@ -12,7 +12,7 @@ const CLINICAL_CONFIG = {
   doctorWhatsApp: "923450303308",
   doctorRole: "Lead Physiotherapist & Posture Specialist",
   clinicName: "AST Posture Clinic",
-  developers: "Abiha & Sumaiya"
+  developers: "Abiha GOVT Girls High School Latifabad Unit:6"
 };
 
 const state = {
@@ -53,7 +53,12 @@ const state = {
   lastSpokenMessage: "",
 
   // Scan History
-  history: []
+  history: [],
+
+  // Mobile & Multi-Camera State
+  cameraFacingMode: 'user', // 'user' or 'environment'
+  videoDevices: [],
+  currentDeviceIndex: 0
 };
 
 // ============================================================================
@@ -79,6 +84,8 @@ const elements = {
 
   // Scanner UI & Controls
   startCameraBtn: document.getElementById('startCameraBtn'),
+  switchCameraBtn: document.getElementById('switchCameraBtn'),
+  takePhotoBtn: document.getElementById('takePhotoBtn'),
   photoUploadInput: document.getElementById('photoUploadInput'),
   saveBaselineBtn: document.getElementById('saveBaselineBtn'),
   captureReportBtn: document.getElementById('captureReportBtn'),
@@ -90,11 +97,30 @@ const elements = {
   webcamVideo: document.getElementById('webcamVideo'),
   staticImage: document.getElementById('staticImage'),
   poseCanvas: document.getElementById('poseCanvas'),
+  cameraFlashOverlay: document.getElementById('cameraFlashOverlay'),
   viewportPlaceholder: document.getElementById('viewportPlaceholder'),
   alignmentStatusBadge: document.getElementById('alignmentStatusBadge'),
   alignmentStatusText: document.getElementById('alignmentStatusText'),
   ghostIndicatorBadge: document.getElementById('ghostIndicatorBadge'),
   speakingIndicator: document.getElementById('speakingIndicator'),
+
+  // Photo Crop & Edit Studio Elements
+  cropStudioModal: document.getElementById('cropStudioModal'),
+  closeCropStudioBtn: document.getElementById('closeCropStudioBtn'),
+  cropRotateBtn: document.getElementById('cropRotateBtn'),
+  cropAspectFreeBtn: document.getElementById('cropAspectFreeBtn'),
+  cropAspect34Btn: document.getElementById('cropAspect34Btn'),
+  cropResetBtn: document.getElementById('cropResetBtn'),
+  cropBrightness: document.getElementById('cropBrightness'),
+  cropContrast: document.getElementById('cropContrast'),
+  brightVal: document.getElementById('brightVal'),
+  contrastVal: document.getElementById('contrastVal'),
+  cropWorkspace: document.getElementById('cropWorkspace'),
+  cropSourceCanvas: document.getElementById('cropSourceCanvas'),
+  cropBox: document.getElementById('cropBox'),
+  cropRetakeBtn: document.getElementById('cropRetakeBtn'),
+  cropDownloadBtn: document.getElementById('cropDownloadBtn'),
+  cropApplyBtn: document.getElementById('cropApplyBtn'),
 
   // Demo buttons
   demoTechNeckBtn: document.getElementById('demoTechNeckBtn'),
@@ -214,6 +240,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initStandingGuideToggle();
   loadHistoryFromStorage();
   initMediaPipePose();
+  initCropStudio();
+  updateVideoDevices();
 
   // Set default appointment date to tomorrow
   const tomorrow = new Date();
@@ -222,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.bookDate.value = tomorrow.toISOString().split('T')[0];
   }
 
-  showToast("Welcome to AST Posture Clinic by Abiha & Sumaiya", "purple");
+  showToast("Welcome to AST Posture Clinic by Abiha GOVT Girls High School Latifabad Unit:6", "purple");
 });
 
 // ============================================================================
@@ -336,8 +364,14 @@ function initMediaPipePose() {
   if (elements.startCameraBtn) {
     elements.startCameraBtn.addEventListener('click', toggleCamera);
   }
+  if (elements.switchCameraBtn) {
+    elements.switchCameraBtn.addEventListener('click', switchCamera);
+  }
+  if (elements.takePhotoBtn) {
+    elements.takePhotoBtn.addEventListener('click', triggerCameraShutter);
+  }
 
-  // Photo Upload Listener
+  // Photo Upload Listener (Opens Crop & Edit Studio)
   if (elements.photoUploadInput) {
     elements.photoUploadInput.addEventListener('change', handlePhotoUpload);
   }
@@ -365,9 +399,45 @@ function initMediaPipePose() {
 }
 
 // ============================================================================
-// Camera Handling
+// Camera Handling & Mobile / Multi-Camera Switching
 // ============================================================================
 let cameraAnimationId = null;
+
+async function updateVideoDevices() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    state.videoDevices = devices.filter(d => d.kind === 'videoinput');
+    console.log(`Discovered ${state.videoDevices.length} video camera(s).`);
+  } catch (e) {
+    console.warn("Could not enumerate video devices:", e);
+  }
+}
+
+function getCameraConstraints() {
+  const hasMultiple = state.videoDevices.length > 1;
+  const currentDev = state.videoDevices[state.currentDeviceIndex];
+
+  if (hasMultiple && currentDev && currentDev.deviceId) {
+    return {
+      video: {
+        deviceId: { exact: currentDev.deviceId },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    };
+  }
+
+  return {
+    video: {
+      facingMode: { ideal: state.cameraFacingMode },
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    },
+    audio: false
+  };
+}
 
 async function toggleCamera() {
   if (state.cameraRunning) {
@@ -383,14 +453,8 @@ async function toggleCamera() {
     elements.staticImage.style.display = 'none';
     elements.webcamVideo.style.display = 'block';
 
-    const constraints = {
-      video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        facingMode: 'user'
-      },
-      audio: false
-    };
+    await updateVideoDevices();
+    const constraints = getCameraConstraints();
 
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
     state.stream = stream;
@@ -401,19 +465,81 @@ async function toggleCamera() {
     elements.startCameraBtn.innerHTML = '<i class="fa-solid fa-video-slash"></i> Stop Camera';
     elements.startCameraBtn.classList.replace('btn-primary', 'btn-danger');
 
+    // Show Take Photo shutter button
+    if (elements.takePhotoBtn) {
+      elements.takePhotoBtn.style.display = 'inline-flex';
+    }
+
     // Resize canvas
     fitCanvasToElement(elements.webcamVideo);
 
+    // Re-check devices in case labels are now exposed
+    await updateVideoDevices();
+
     // Start Pose frame loop
     runCameraFrameLoop();
-    showToast("Live Camera Active. Stand back for full-body view.", "green");
+    const cameraLabel = state.cameraFacingMode === 'user' ? 'Front Camera' : 'Back Camera';
+    showToast(`Live Camera Active (${cameraLabel}). Stand back for full-body view.`, "green");
   } catch (err) {
     console.error("Camera access error:", err);
     elements.startCameraBtn.innerHTML = '<i class="fa-solid fa-video"></i> Start Live Camera';
     elements.startCameraBtn.classList.replace('btn-danger', 'btn-primary');
     elements.viewportPlaceholder.style.display = 'flex';
+    if (elements.takePhotoBtn) elements.takePhotoBtn.style.display = 'none';
     
     showToast("Camera error: " + (err.message || "Unable to access webcam. Check permissions."), "red");
+  }
+}
+
+async function switchCamera() {
+  await updateVideoDevices();
+
+  if (state.videoDevices.length > 1) {
+    state.currentDeviceIndex = (state.currentDeviceIndex + 1) % state.videoDevices.length;
+    const dev = state.videoDevices[state.currentDeviceIndex];
+    const labelLower = (dev.label || "").toLowerCase();
+    if (labelLower.includes('back') || labelLower.includes('rear') || labelLower.includes('environment')) {
+      state.cameraFacingMode = 'environment';
+    } else {
+      state.cameraFacingMode = 'user';
+    }
+  } else {
+    // Toggle facing mode between front and back
+    state.cameraFacingMode = state.cameraFacingMode === 'user' ? 'environment' : 'user';
+  }
+
+  const cameraTypeLabel = state.cameraFacingMode === 'user' ? 'Front Camera' : 'Rear / Back Camera';
+
+  if (state.cameraRunning) {
+    try {
+      if (state.stream) {
+        state.stream.getTracks().forEach(track => track.stop());
+      }
+      const constraints = getCameraConstraints();
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      state.stream = stream;
+      elements.webcamVideo.srcObject = stream;
+      await elements.webcamVideo.play();
+      fitCanvasToElement(elements.webcamVideo);
+      showToast(`Camera switched to: ${cameraTypeLabel}`, "purple");
+    } catch (err) {
+      console.warn("Could not switch camera with exact constraints, using fallback facingMode:", err);
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: state.cameraFacingMode }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        });
+        state.stream = fallbackStream;
+        elements.webcamVideo.srcObject = fallbackStream;
+        await elements.webcamVideo.play();
+        fitCanvasToElement(elements.webcamVideo);
+        showToast(`Camera switched to: ${cameraTypeLabel}`, "purple");
+      } catch (e2) {
+        showToast("Camera switch failed: " + e2.message, "red");
+      }
+    }
+  } else {
+    showToast(`Default camera toggled to: ${cameraTypeLabel}`, "purple");
   }
 }
 
@@ -431,6 +557,9 @@ function stopCamera() {
   elements.startCameraBtn.innerHTML = '<i class="fa-solid fa-video"></i> Start Live Camera';
   elements.startCameraBtn.classList.replace('btn-danger', 'btn-primary');
   elements.viewportPlaceholder.style.display = 'flex';
+  if (elements.takePhotoBtn) {
+    elements.takePhotoBtn.style.display = 'none';
+  }
   showToast("Camera stopped.", "purple");
 }
 
@@ -452,7 +581,57 @@ async function runCameraFrameLoop() {
 }
 
 // ============================================================================
-// Photo Upload Handling
+// Real Camera Shutter ("Take Photo" Button)
+// ============================================================================
+function triggerCameraShutter() {
+  if (!state.cameraRunning || !elements.webcamVideo) {
+    showToast("Please start the camera first to capture a photo.", "purple");
+    return;
+  }
+
+  // Camera Flash Visual Effect
+  if (elements.cameraFlashOverlay) {
+    elements.cameraFlashOverlay.classList.add('flashing');
+    setTimeout(() => {
+      elements.cameraFlashOverlay.classList.remove('flashing');
+    }, 220);
+  }
+
+  // Synthesized Camera Shutter Click Audio (Web Audio API)
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      const audioCtx = new AudioContextClass();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(950, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(160, audioCtx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.08);
+    }
+  } catch (e) {}
+
+  // Capture current video frame onto an HTML5 canvas
+  const vw = elements.webcamVideo.videoWidth || 1280;
+  const vh = elements.webcamVideo.videoHeight || 720;
+  const snapCanvas = document.createElement('canvas');
+  snapCanvas.width = vw;
+  snapCanvas.height = vh;
+  const sCtx = snapCanvas.getContext('2d');
+  sCtx.drawImage(elements.webcamVideo, 0, 0, vw, vh);
+
+  const capturedDataUrl = snapCanvas.toDataURL('image/png');
+  showToast("Photo captured! Opening Photo Crop & Edit Studio...", "green");
+  openCropStudio(capturedDataUrl, false);
+}
+
+// ============================================================================
+// Photo Upload Handling (Opens Crop & Edit Studio)
 // ============================================================================
 function handlePhotoUpload(e) {
   const file = e.target.files[0];
@@ -464,29 +643,459 @@ function handlePhotoUpload(e) {
 
   const reader = new FileReader();
   reader.onload = function(event) {
-    elements.viewportPlaceholder.style.display = 'none';
-    elements.webcamVideo.style.display = 'none';
-    elements.staticImage.style.display = 'block';
-    
-    elements.staticImage.onload = async () => {
-      fitCanvasToElement(elements.staticImage);
-      if (state.poseModel) {
-        showToast("Analyzing posture photo with MediaPipe Pose...", "purple");
-        try {
-          await state.poseModel.send({ image: elements.staticImage });
-          showToast("Photo posture scan complete!", "green");
-        } catch (err) {
-          console.error("Error processing static photo:", err);
-          showToast("Photo analysis failed. Ensure subject is visible.", "red");
-        }
-      } else {
-        // Fallback simulated scan for photo
-        simulateBiomechanicalScan(22, 5.2, 3.8);
-      }
-    };
-    elements.staticImage.src = event.target.result;
+    const dataUrl = event.target.result;
+    openCropStudio(dataUrl, true);
+    // Reset file input so user can choose the same file if needed
+    e.target.value = '';
   };
   reader.readAsDataURL(file);
+}
+
+// ============================================================================
+// Photo Crop & Edit Studio Module
+// ============================================================================
+const cropState = {
+  sourceImg: null,
+  rotation: 0, // 0, 90, 180, 270
+  brightness: 100, // 50 to 180
+  contrast: 100, // 50 to 180
+  aspectRatio: null, // null (free) or (3/4)
+  isFromUpload: false,
+
+  // Position & size relative to #cropWorkspace
+  boxX: 0,
+  boxY: 0,
+  boxW: 0,
+  boxH: 0,
+
+  // Dragging state
+  isDragging: false,
+  dragMode: null, // 'move', 'nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'
+  startX: 0,
+  startY: 0,
+  startBoxX: 0,
+  startBoxY: 0,
+  startBoxW: 0,
+  startBoxH: 0,
+
+  // Rendered canvas metrics
+  drawW: 0,
+  drawH: 0,
+  offsetX: 0,
+  offsetY: 0
+};
+
+function initCropStudio() {
+  if (!elements.cropStudioModal) return;
+
+  // Close button
+  if (elements.closeCropStudioBtn) {
+    elements.closeCropStudioBtn.addEventListener('click', closeCropStudio);
+  }
+
+  // Rotate 90
+  if (elements.cropRotateBtn) {
+    elements.cropRotateBtn.addEventListener('click', () => {
+      cropState.rotation = (cropState.rotation + 90) % 360;
+      renderCropStudioCanvas(true);
+    });
+  }
+
+  // Free Crop vs 3:4 Aspect
+  if (elements.cropAspectFreeBtn) {
+    elements.cropAspectFreeBtn.addEventListener('click', () => {
+      cropState.aspectRatio = null;
+      elements.cropAspectFreeBtn.classList.add('active');
+      if (elements.cropAspect34Btn) elements.cropAspect34Btn.classList.remove('active');
+      showToast("Free-form crop mode selected", "purple");
+    });
+  }
+
+  if (elements.cropAspect34Btn) {
+    elements.cropAspect34Btn.addEventListener('click', () => {
+      cropState.aspectRatio = 3 / 4;
+      elements.cropAspect34Btn.classList.add('active');
+      if (elements.cropAspectFreeBtn) elements.cropAspectFreeBtn.classList.remove('active');
+      applyAspectRatioToCropBox();
+      showToast("3:4 Full Body Portrait crop ratio locked", "purple");
+    });
+  }
+
+  // Reset button
+  if (elements.cropResetBtn) {
+    elements.cropResetBtn.addEventListener('click', () => {
+      cropState.rotation = 0;
+      cropState.brightness = 100;
+      cropState.contrast = 100;
+      cropState.aspectRatio = null;
+      if (elements.cropBrightness) elements.cropBrightness.value = 100;
+      if (elements.cropContrast) elements.cropContrast.value = 100;
+      if (elements.brightVal) elements.brightVal.textContent = '100%';
+      if (elements.contrastVal) elements.contrastVal.textContent = '100%';
+      if (elements.cropAspectFreeBtn) elements.cropAspectFreeBtn.classList.add('active');
+      if (elements.cropAspect34Btn) elements.cropAspect34Btn.classList.remove('active');
+      renderCropStudioCanvas(true);
+      showToast("Crop & lighting adjustments reset.", "purple");
+    });
+  }
+
+  // Brightness slider
+  if (elements.cropBrightness) {
+    elements.cropBrightness.addEventListener('input', (e) => {
+      cropState.brightness = parseInt(e.target.value);
+      if (elements.brightVal) elements.brightVal.textContent = `${cropState.brightness}%`;
+      renderCropStudioCanvas(false);
+    });
+  }
+
+  // Contrast slider
+  if (elements.cropContrast) {
+    elements.cropContrast.addEventListener('input', (e) => {
+      cropState.contrast = parseInt(e.target.value);
+      if (elements.contrastVal) elements.contrastVal.textContent = `${cropState.contrast}%`;
+      renderCropStudioCanvas(false);
+    });
+  }
+
+  // Action Buttons
+  if (elements.cropRetakeBtn) {
+    elements.cropRetakeBtn.addEventListener('click', () => {
+      closeCropStudio();
+      if (cropState.isFromUpload) {
+        if (elements.photoUploadInput) elements.photoUploadInput.click();
+      } else {
+        if (!state.cameraRunning) toggleCamera();
+      }
+    });
+  }
+
+  if (elements.cropDownloadBtn) {
+    elements.cropDownloadBtn.addEventListener('click', downloadCroppedPhoto);
+  }
+
+  if (elements.cropApplyBtn) {
+    elements.cropApplyBtn.addEventListener('click', applyCroppedPhotoToScanner);
+  }
+
+  // Workspace drag and resize events
+  initCropDragEvents();
+}
+
+function openCropStudio(imageUrl, isFromUpload = false) {
+  cropState.isFromUpload = isFromUpload;
+  cropState.rotation = 0;
+  cropState.brightness = 100;
+  cropState.contrast = 100;
+  cropState.aspectRatio = null;
+
+  if (elements.cropBrightness) elements.cropBrightness.value = 100;
+  if (elements.cropContrast) elements.cropContrast.value = 100;
+  if (elements.brightVal) elements.brightVal.textContent = '100%';
+  if (elements.contrastVal) elements.contrastVal.textContent = '100%';
+  if (elements.cropAspectFreeBtn) elements.cropAspectFreeBtn.classList.add('active');
+  if (elements.cropAspect34Btn) elements.cropAspect34Btn.classList.remove('active');
+
+  const img = new Image();
+  img.onload = () => {
+    cropState.sourceImg = img;
+    elements.cropStudioModal.classList.add('active');
+    requestAnimationFrame(() => {
+      renderCropStudioCanvas(true);
+    });
+  };
+  img.src = imageUrl;
+}
+
+function closeCropStudio() {
+  if (elements.cropStudioModal) {
+    elements.cropStudioModal.classList.remove('active');
+  }
+}
+
+function renderCropStudioCanvas(resetBox = false) {
+  if (!cropState.sourceImg || !elements.cropWorkspace || !elements.cropSourceCanvas) return;
+
+  const ws = elements.cropWorkspace;
+  const canvas = elements.cropSourceCanvas;
+  const ctx = canvas.getContext('2d');
+
+  const wsW = Math.max(300, ws.clientWidth || 600);
+  const wsH = Math.max(250, ws.clientHeight || 420);
+
+  const isRotated90 = (cropState.rotation % 180 !== 0);
+  const srcW = isRotated90 ? cropState.sourceImg.naturalHeight : cropState.sourceImg.naturalWidth;
+  const srcH = isRotated90 ? cropState.sourceImg.naturalWidth : cropState.sourceImg.naturalHeight;
+
+  // Scale to fit inside workspace with padding
+  const padding = 16;
+  const scale = Math.min((wsW - padding * 2) / srcW, (wsH - padding * 2) / srcH);
+  const drawW = Math.round(srcW * scale);
+  const drawH = Math.round(srcH * scale);
+
+  canvas.width = drawW;
+  canvas.height = drawH;
+
+  // Center canvas coordinates inside workspace
+  cropState.drawW = drawW;
+  cropState.drawH = drawH;
+  cropState.offsetX = Math.round((wsW - drawW) / 2);
+  cropState.offsetY = Math.round((wsH - drawH) / 2);
+
+  // Render image with rotation and filters
+  ctx.save();
+  ctx.filter = `brightness(${cropState.brightness}%) contrast(${cropState.contrast}%)`;
+  ctx.translate(drawW / 2, drawH / 2);
+  ctx.rotate((cropState.rotation * Math.PI) / 180);
+
+  const origDrawW = cropState.sourceImg.naturalWidth * scale;
+  const origDrawH = cropState.sourceImg.naturalHeight * scale;
+  ctx.drawImage(cropState.sourceImg, -origDrawW / 2, -origDrawH / 2, origDrawW, origDrawH);
+  ctx.restore();
+
+  if (resetBox || cropState.boxW === 0) {
+    let bw = drawW * 0.8;
+    let bh = drawH * 0.88;
+
+    if (cropState.aspectRatio) {
+      bw = bh * cropState.aspectRatio;
+      if (bw > drawW) {
+        bw = drawW;
+        bh = bw / cropState.aspectRatio;
+      }
+    }
+
+    cropState.boxW = Math.round(bw);
+    cropState.boxH = Math.round(bh);
+    cropState.boxX = Math.round(cropState.offsetX + (drawW - cropState.boxW) / 2);
+    cropState.boxY = Math.round(cropState.offsetY + (drawH - cropState.boxH) / 2);
+  } else {
+    clampCropBoxToBounds();
+  }
+
+  updateCropBoxDOM();
+}
+
+function clampCropBoxToBounds() {
+  const minX = cropState.offsetX;
+  const minY = cropState.offsetY;
+  const maxX = cropState.offsetX + cropState.drawW;
+  const maxY = cropState.offsetY + cropState.drawH;
+
+  cropState.boxW = Math.max(40, Math.min(cropState.drawW, cropState.boxW));
+  cropState.boxH = Math.max(40, Math.min(cropState.drawH, cropState.boxH));
+
+  cropState.boxX = Math.max(minX, Math.min(maxX - cropState.boxW, cropState.boxX));
+  cropState.boxY = Math.max(minY, Math.min(maxY - cropState.boxH, cropState.boxY));
+}
+
+function applyAspectRatioToCropBox() {
+  if (!cropState.aspectRatio) return;
+  let newW = cropState.boxH * cropState.aspectRatio;
+  if (newW > cropState.drawW) {
+    newW = cropState.drawW;
+    cropState.boxH = newW / cropState.aspectRatio;
+  }
+  cropState.boxW = Math.round(newW);
+  clampCropBoxToBounds();
+  updateCropBoxDOM();
+}
+
+function updateCropBoxDOM() {
+  if (!elements.cropBox) return;
+  elements.cropBox.style.left = `${cropState.boxX}px`;
+  elements.cropBox.style.top = `${cropState.boxY}px`;
+  elements.cropBox.style.width = `${cropState.boxW}px`;
+  elements.cropBox.style.height = `${cropState.boxH}px`;
+}
+
+function initCropDragEvents() {
+  const ws = elements.cropWorkspace;
+  if (!ws) return;
+
+  function getPointer(e) {
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  function handleStart(e) {
+    const handle = e.target.closest('.crop-handle');
+    const box = e.target.closest('#cropBox');
+    if (!handle && !box) return;
+
+    e.preventDefault();
+    const ptr = getPointer(e);
+
+    cropState.isDragging = true;
+    cropState.dragMode = handle ? handle.dataset.handle : 'move';
+    cropState.startX = ptr.x;
+    cropState.startY = ptr.y;
+    cropState.startBoxX = cropState.boxX;
+    cropState.startBoxY = cropState.boxY;
+    cropState.startBoxW = cropState.boxW;
+    cropState.startBoxH = cropState.boxH;
+  }
+
+  function handleMove(e) {
+    if (!cropState.isDragging) return;
+    e.preventDefault();
+
+    const ptr = getPointer(e);
+    const dx = ptr.x - cropState.startX;
+    const dy = ptr.y - cropState.startY;
+
+    const minX = cropState.offsetX;
+    const minY = cropState.offsetY;
+    const maxX = cropState.offsetX + cropState.drawW;
+    const maxY = cropState.offsetY + cropState.drawH;
+    const minSize = 40;
+
+    if (cropState.dragMode === 'move') {
+      let nx = cropState.startBoxX + dx;
+      let ny = cropState.startBoxY + dy;
+      cropState.boxX = Math.max(minX, Math.min(maxX - cropState.boxW, nx));
+      cropState.boxY = Math.max(minY, Math.min(maxY - cropState.boxH, ny));
+    } else {
+      let newX = cropState.startBoxX;
+      let newY = cropState.startBoxY;
+      let newW = cropState.startBoxW;
+      let newH = cropState.startBoxH;
+
+      if (cropState.dragMode.includes('e')) {
+        newW = Math.max(minSize, Math.min(maxX - newX, cropState.startBoxW + dx));
+      }
+      if (cropState.dragMode.includes('s')) {
+        newH = Math.max(minSize, Math.min(maxY - newY, cropState.startBoxH + dy));
+      }
+      if (cropState.dragMode.includes('w')) {
+        const potentialW = cropState.startBoxW - dx;
+        if (potentialW >= minSize && (cropState.startBoxX + dx) >= minX) {
+          newX = cropState.startBoxX + dx;
+          newW = potentialW;
+        }
+      }
+      if (cropState.dragMode.includes('n')) {
+        const potentialH = cropState.startBoxH - dy;
+        if (potentialH >= minSize && (cropState.startBoxY + dy) >= minY) {
+          newY = cropState.startBoxY + dy;
+          newH = potentialH;
+        }
+      }
+
+      if (cropState.aspectRatio) {
+        if (cropState.dragMode === 'e' || cropState.dragMode === 'w') {
+          newH = Math.min(maxY - newY, newW / cropState.aspectRatio);
+        } else {
+          newW = Math.min(maxX - newX, newH * cropState.aspectRatio);
+        }
+      }
+
+      cropState.boxX = Math.round(newX);
+      cropState.boxY = Math.round(newY);
+      cropState.boxW = Math.round(newW);
+      cropState.boxH = Math.round(newH);
+    }
+
+    updateCropBoxDOM();
+  }
+
+  function handleEnd() {
+    cropState.isDragging = false;
+    cropState.dragMode = null;
+  }
+
+  // Mouse events
+  ws.addEventListener('mousedown', handleStart);
+  window.addEventListener('mousemove', handleMove);
+  window.addEventListener('mouseup', handleEnd);
+
+  // Touch events (for mobile phones and tablets)
+  ws.addEventListener('touchstart', handleStart, { passive: false });
+  window.addEventListener('touchmove', handleMove, { passive: false });
+  window.addEventListener('touchend', handleEnd);
+  window.addEventListener('touchcancel', handleEnd);
+}
+
+function getCroppedResultCanvas() {
+  if (!elements.cropSourceCanvas) return null;
+
+  const canvas = elements.cropSourceCanvas;
+  const relX = Math.max(0, cropState.boxX - cropState.offsetX);
+  const relY = Math.max(0, cropState.boxY - cropState.offsetY);
+  const relW = Math.max(10, Math.min(canvas.width - relX, cropState.boxW));
+  const relH = Math.max(10, Math.min(canvas.height - relY, cropState.boxH));
+
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = relW;
+  outCanvas.height = relH;
+  const oCtx = outCanvas.getContext('2d');
+
+  oCtx.drawImage(canvas, relX, relY, relW, relH, 0, 0, relW, relH);
+  return outCanvas;
+}
+
+function downloadCroppedPhoto() {
+  const resultCanvas = getCroppedResultCanvas();
+  if (!resultCanvas) return;
+
+  const dataUrl = resultCanvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = `AST_Posture_Cropped_${Date.now()}.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  showToast("Cropped photo downloaded successfully!", "green");
+}
+
+async function applyCroppedPhotoToScanner() {
+  const resultCanvas = getCroppedResultCanvas();
+  if (!resultCanvas) return;
+
+  const croppedDataUrl = resultCanvas.toDataURL('image/png');
+  closeCropStudio();
+
+  // Stop live camera if running
+  if (state.cameraRunning) {
+    if (state.stream) {
+      state.stream.getTracks().forEach(t => t.stop());
+      state.stream = null;
+    }
+    if (cameraAnimationId) {
+      cancelAnimationFrame(cameraAnimationId);
+      cameraAnimationId = null;
+    }
+    state.cameraRunning = false;
+    elements.startCameraBtn.innerHTML = '<i class="fa-solid fa-video"></i> Start Live Camera';
+    elements.startCameraBtn.classList.replace('btn-danger', 'btn-primary');
+    if (elements.takePhotoBtn) elements.takePhotoBtn.style.display = 'none';
+  }
+
+  // Display cropped photo in main scanner viewport
+  elements.viewportPlaceholder.style.display = 'none';
+  elements.webcamVideo.style.display = 'none';
+  elements.staticImage.style.display = 'block';
+
+  elements.staticImage.onload = async () => {
+    fitCanvasToElement(elements.staticImage);
+    showToast("Cropped photo loaded! Running AI Posture Analysis...", "purple");
+
+    if (state.poseModel) {
+      try {
+        await state.poseModel.send({ image: elements.staticImage });
+        showToast("AI Posture analysis complete!", "green");
+      } catch (err) {
+        console.warn("Pose processing on cropped image error:", err);
+        loadSimulatedDemo('techNeck');
+      }
+    } else {
+      loadSimulatedDemo('techNeck');
+    }
+  };
+
+  elements.staticImage.src = croppedDataUrl;
 }
 
 // ============================================================================
@@ -1332,7 +1941,7 @@ function openDoctorWhatsApp() {
 
   const msg = 
 `🏥 *AST Posture Clinic - Clinical Assessment Summary*
-*Developed by Abiha & Sumaiya | Clinical Lead: Dr. Tahira Nihal*
+*Developed by Abiha GOVT Girls High School Latifabad Unit:6 | Clinical Lead: Dr. Tahira Nihal*
 ----------------------------------------
 👤 *Patient Details:*
 • *Name:* ${p.name}
