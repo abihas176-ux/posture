@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AST Posture Clinic | AI Postural Assessment & Tele-Health</title>
+  
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Google MediaPipe Pose & Camera Utils CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       Header & Brand Navigation
+       ========================================================================== -->
+  <header class="site-header">
+    <div class="header-container">
+      <div class="brand-wrapper">
+        <div class="brand-logo-icon">
+          <i class="fa-solid fa-person-walking"></i>
+        </div>
+        <div class="brand-info">
+          <h1>AST Posture Clinic</h1>
+          <div class="brand-subtitle">
+            AI Orthopedic & Biomechanical Suite • Developed by <span>Abiha &amp; Sumaiya</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs" role="tablist">
+        <button class="nav-tab-btn active" data-tab="scanner" role="tab">
+          <i class="fa-solid fa-camera"></i> Live AI Scanner
+        </button>
+        <button class="nav-tab-btn" data-tab="ergo" role="tab">
+          <i class="fa-solid fa-chair"></i> Ergonomic Desk
+        </button>
+        <button class="nav-tab-btn" data-tab="report" role="tab">
+          <i class="fa-solid fa-file-medical"></i> Clinical Report
+        </button>
+        <button class="nav-tab-btn doctor-tab-btn" data-tab="consult" role="tab">
+          <i class="fa-solid fa-user-doctor"></i> Dr. Tahira Nihal
+        </button>
+        <button class="nav-tab-btn" data-tab="history" role="tab">
+          <i class="fa-solid fa-clock-rotate-left"></i> History
+        </button>
+      </nav>
+
+      <!-- Status Pill -->
+      <div class="header-status-pill">
+        <span class="pulse-dot"></span>
+        <span>MediaPipe Pose AI Ready</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       Quick Patient Info Bar
+       ========================================================================== -->
+  <section class="patient-bar-section">
+    <div class="patient-bar-card glass-card">
+      <div class="patient-bar-title">
+        <i class="fa-solid fa-id-card-clip"></i>
+        <span>Active Patient Profile</span>
+      </div>
+      <div class="patient-inputs-group">
+        <div class="input-pill">
+          <label for="patientNameInput"><i class="fa-regular fa-user"></i> Name</label>
+          <input type="text" id="patientNameInput" placeholder="Enter patient name..." value="Abiha Khan">
+        </div>
+        <div class="input-pill" style="max-width: 110px;">
+          <label for="patientAgeInput">Age</label>
+          <input type="number" id="patientAgeInput" placeholder="Age" value="24" min="5" max="110">
+        </div>
+        <div class="input-pill">
+          <label for="patientGenderSelect">Gender</label>
+          <select id="patientGenderSelect">
+            <option value="Female" selected>Female</option>
+            <option value="Male">Male</option>
+            <option value="Non-binary">Non-binary</option>
+            <option value="Prefer not to say">Other</option>
+          </select>
+        </div>
+        <button id="savePatientBtn" class="save-profile-btn" title="Save profile to report">
+          <i class="fa-solid fa-check"></i> Sync Profile
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       Dr. Tahira Nihal Automatic Recommendation Alert Banner (< 75%)
+       ========================================================================== -->
+  <aside id="specialistAlertBanner" class="specialist-alert-banner">
+    <div class="alert-banner-inner">
+      <div class="alert-banner-content">
+        <div class="alert-banner-icon">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div class="alert-banner-text">
+          <h4 id="alertBannerTitle">Clinical Alert: Posture Score Below 75%</h4>
+          <p id="alertBannerMsg">
+            Significant cervical and thoracic misalignments detected. Dr. Tahira Nihal (Lead Physiotherapist) recommends a personalized postural correction plan to prevent chronic cervical strain.
+          </p>
+        </div>
+      </div>
+      <div class="alert-banner-actions">
+        <button id="alertConsultBtn" class="btn btn-pink btn-sm">
+          <i class="fa-solid fa-user-doctor"></i> Consult Dr. Tahira Now
+        </button>
+        <button id="alertWhatsAppBtn" class="btn btn-whatsapp btn-sm">
+          <i class="fa-brands fa-whatsapp"></i> WhatsApp Doctor
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==========================================================================
+       Main Application Views / Tabs
+       ========================================================================== -->
+  <main class="main-wrapper">
+
+    <!-- ========================================================================
+         TAB 1: LIVE AI POSTURE SCANNER
+         ======================================================================== -->
+    <section id="pane-scanner" class="tab-pane active" role="tabpanel">
+      
+      <!-- Visual Standing Guide Card -->
+      <div class="visual-guide-card glass-card">
+        <div class="guide-header" id="guideToggleBtn">
+          <h3>
+            <i class="fa-solid fa-compass-drafting text-gradient-purple"></i>
+            Clinical Scanning Guide: How to Position for Precision Assessment
+          </h3>
+          <span style="font-size: 0.8rem; color: var(--accent-lavender);">
+            <i class="fa-solid fa-chevron-down" id="guideArrowIcon"></i> Click to Toggle Tips
+          </span>
+        </div>
+        <div class="guide-steps-grid" id="guideStepsContent">
+          <div class="guide-step-item">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <h4>Full-Body Frame</h4>
+              <p>Stand 6 to 8 feet away so head, shoulders, hips, knees, and ankles are clearly visible.</p>
+            </div>
+          </div>
+          <div class="guide-step-item">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h4>Front View Scan</h4>
+              <p>Face camera squarely with feet shoulder-width apart to detect uneven shoulders and hip tilt.</p>
+            </div>
+          </div>
+          <div class="guide-step-item">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h4>Side View Scan</h4>
+              <p>Turn 90 degrees sideways to measure forward head posture (Tech-Neck) and cervical spinal load.</p>
+            </div>
+          </div>
+          <div class="guide-step-item">
+            <div class="step-num">4</div>
+            <div class="step-content">
+              <h4>Relaxed Natural Stance</h4>
+              <p>Do not stiffen or artificially pose; stand naturally for an honest clinical baseline.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scanner Controls Bar -->
+      <div class="scanner-controls-bar">
+        <div class="primary-controls">
+          <button id="startCameraBtn" class="btn btn-primary">
+            <i class="fa-solid fa-video"></i> Start Live Camera
+          </button>
+          
+          <label class="btn btn-secondary" for="photoUploadInput" style="cursor: pointer;">
+            <i class="fa-solid fa-file-arrow-up"></i> Upload Full-Body Photo
+            <input type="file" id="photoUploadInput" accept="image/*" style="display: none;">
+          </label>
+
+          <button id="saveBaselineBtn" class="btn btn-secondary" title="Save current pose as faint ghost overlay for comparison">
+            <i class="fa-solid fa-ghost"></i> Save Baseline Posture
+          </button>
+
+          <button id="captureReportBtn" class="btn btn-success" title="Freeze frame and generate full medical report">
+            <i class="fa-solid fa-file-waveform"></i> Capture &amp; Generate Report
+          </button>
+        </div>
+
+        <div class="secondary-controls">
+          <!-- AI Voice Guidance Switch -->
+          <label class="toggle-control" title="Toggle real-time AI spoken clinical feedback">
+            <input type="checkbox" id="voiceToggle" class="switch-input" checked>
+            <span class="switch-slider"></span>
+            <span><i class="fa-solid fa-volume-high"></i> Voice Coach</span>
+          </label>
+
+          <!-- Ghost Overlay Switch -->
+          <label class="toggle-control" title="Overlay faint ghost skeleton of baseline posture">
+            <input type="checkbox" id="ghostToggle" class="switch-input" checked>
+            <span class="switch-slider"></span>
+            <span><i class="fa-solid fa-clone"></i> Ghost Overlay</span>
+          </label>
+
+          <!-- Plumb Line Reference Grid -->
+          <label class="toggle-control" title="Show vertical center plumb line reference">
+            <input type="checkbox" id="plumbLineToggle" class="switch-input" checked>
+            <span class="switch-slider"></span>
+            <span><i class="fa-solid fa-ruler-vertical"></i> Plumb Line</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Main Scanner Layout (Canvas + Sidebar Metrics) -->
+      <div class="scanner-grid">
+        <!-- Canvas Viewport -->
+        <div class="canvas-viewport-card glass-card">
+          <!-- Video Feed Layer -->
+          <video id="webcamVideo" class="viewport-media-layer" playsinline muted></video>
+          
+          <!-- Static Image Layer -->
+          <img id="staticImage" class="viewport-media-layer" alt="Uploaded posture photo">
+
+          <!-- HTML5 Canvas Overlay (Skeletal Neon Tracking & Plumb Line) -->
+          <canvas id="poseCanvas"></canvas>
+
+          <!-- HUD Top Overlay -->
+          <div class="canvas-hud-top">
+            <div class="hud-pill" id="alignmentStatusBadge">
+              <span class="pulse-dot"></span>
+              <span id="alignmentStatusText">Awaiting Pose Detection</span>
+            </div>
+
+            <div class="ghost-active-pill" id="ghostIndicatorBadge">
+              <i class="fa-solid fa-ghost"></i> Baseline Ghost Active
+            </div>
+
+            <div class="hud-speaking-indicator" id="speakingIndicator">
+              <i class="fa-solid fa-waveform-lines"></i> AI Coach Speaking...
+            </div>
+          </div>
+
+          <!-- Placeholder when no camera / photo is active -->
+          <div class="viewport-placeholder" id="viewportPlaceholder">
+            <div class="placeholder-icon">
+              <i class="fa-solid fa-person-rays"></i>
+            </div>
+            <h3>Ready for Clinical AI Scan</h3>
+            <p>
+              Launch your webcam, upload a patient photo, or test instantly with a simulated posture clinical demo below:
+            </p>
+            <div class="placeholder-quick-demos">
+              <button class="btn btn-secondary btn-sm" id="demoTechNeckBtn">
+                <i class="fa-solid fa-mobile-screen-button text-gradient-purple"></i> Demo: Tech-Neck (28°)
+              </button>
+              <button class="btn btn-secondary btn-sm" id="demoGoodPostureBtn">
+                <i class="fa-solid fa-check-double" style="color: var(--status-good);"></i> Demo: Ideal Posture (4°)
+              </button>
+              <button class="btn btn-secondary btn-sm" id="demoUnevenShouldersBtn">
+                <i class="fa-solid fa-arrows-up-down" style="color: var(--status-mild);"></i> Demo: Uneven Shoulders
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sidebar Real-Time Metrics & Tech-Neck Load -->
+        <div class="scanner-sidebar">
+          
+          <!-- Overall Live Posture Score Preview -->
+          <div class="posture-score-preview-card glass-card">
+            <div class="score-preview-info">
+              <h4>Posture Health Score</h4>
+              <p id="scoreGradeText">Overall Biomechanical Rating</p>
+              <span id="scoreBadge" class="badge badge-purple" style="margin-top: 6px;">Ready</span>
+            </div>
+            <div class="score-circle-preview">
+              <svg width="76" height="76">
+                <circle class="score-circle-bg" stroke-width="6" fill="transparent" r="32" cx="38" cy="38"/>
+                <circle id="scoreRingProgress" class="score-circle-progress" stroke-width="6" fill="transparent" r="32" cx="38" cy="38"/>
+              </svg>
+              <div class="score-circle-number" id="scoreNumber">--</div>
+            </div>
+          </div>
+
+          <!-- Feature C: Tech-Neck Cervical Load Meter -->
+          <div class="metric-card load-meter-card glass-card">
+            <div class="metric-header">
+              <h4>
+                <i class="fa-solid fa-weight-hanging"></i>
+                Tech-Neck Cervical Load
+              </h4>
+              <span id="loadBadge" class="metric-status-badge badge-green">Normal</span>
+            </div>
+            <div class="load-meter-display">
+              <div class="load-weight-huge" id="loadWeightHuge">
+                5.0 <span>kg</span>
+              </div>
+              <div class="spine-diagram-pill">
+                <div class="label">Extra Strain</div>
+                <div class="value" id="extraStrainVal">+0.0 kg</div>
+              </div>
+            </div>
+            <div class="metric-bar-bg">
+              <div id="cervicalLoadBar" class="metric-bar-fill good" style="width: 15%;"></div>
+            </div>
+            <div class="load-message-alert" id="cervicalLoadMsg">
+              <i class="fa-solid fa-circle-info"></i>
+              Neck tilt is in a healthy neutral range. Cervical spine carries natural head weight (~5 kg).
+            </div>
+          </div>
+
+          <!-- Metric 1: Neck Forward Tilt Angle -->
+          <div class="metric-card glass-card">
+            <div class="metric-header">
+              <h4><i class="fa-solid fa-head-side-couch"></i> Neck Forward Tilt</h4>
+              <span id="neckStatusBadge" class="metric-status-badge badge-purple">--</span>
+            </div>
+            <div class="metric-value-box">
+              <div class="metric-value" id="neckAngleVal">0°</div>
+              <div class="metric-unit">tilt</div>
+            </div>
+            <div class="metric-bar-bg">
+              <div id="neckBarFill" class="metric-bar-fill good" style="width: 5%;"></div>
+            </div>
+          </div>
+
+          <!-- Metric 2: Shoulder Tilt Angle -->
+          <div class="metric-card glass-card">
+            <div class="metric-header">
+              <h4><i class="fa-solid fa-arrows-up-down-left-right"></i> Shoulder Alignment</h4>
+              <span id="shoulderStatusBadge" class="metric-status-badge badge-purple">--</span>
+            </div>
+            <div class="metric-value-box">
+              <div class="metric-value" id="shoulderAngleVal">0°</div>
+              <div class="metric-unit">horizontal tilt</div>
+            </div>
+            <div class="metric-bar-bg">
+              <div id="shoulderBarFill" class="metric-bar-fill good" style="width: 5%;"></div>
+            </div>
+          </div>
+
+          <!-- Metric 3: Torso & Hip Alignment -->
+          <div class="metric-card glass-card">
+            <div class="metric-header">
+              <h4><i class="fa-solid fa-arrows-split-up-and-left"></i> Torso / Hip Tilt</h4>
+              <span id="torsoStatusBadge" class="metric-status-badge badge-purple">--</span>
+            </div>
+            <div class="metric-value-box">
+              <div class="metric-value" id="torsoAngleVal">0°</div>
+              <div class="metric-unit">vertical deviation</div>
+            </div>
+            <div class="metric-bar-bg">
+              <div id="torsoBarFill" class="metric-bar-fill good" style="width: 5%;"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         TAB 2: ERGONOMIC DESK & CHAIR CALCULATOR (FEATURE D)
+         ======================================================================== -->
+    <section id="pane-ergo" class="tab-pane" role="tabpanel">
+      <div class="ergo-calculator-grid">
+        
+        <!-- Height Inputs & Options Card -->
+        <div class="ergo-inputs-card glass-card">
+          <h3 style="margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-calculator text-gradient-purple"></i>
+            Ergonomic Workspace Calculator
+          </h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px;">
+            Calculates your ideal chair height, desk height, and monitor distance using OSHA &amp; BIFMA ergonomic standards to prevent spinal fatigue.
+          </p>
+
+          <!-- Unit Selector -->
+          <div class="unit-selector">
+            <button class="unit-btn active" id="unitCmBtn">Centimeters (cm)</button>
+            <button class="unit-btn" id="unitFtBtn">Feet &amp; Inches (ft / in)</button>
+          </div>
+
+          <!-- Metric Input -->
+          <div id="metricInputGroup" class="form-group">
+            <label for="heightCmInput">User Standing Height (cm)</label>
+            <input type="number" id="heightCmInput" class="form-control" value="172" min="100" max="230">
+          </div>
+
+          <!-- Imperial Input (hidden by default) -->
+          <div id="imperialInputGroup" class="form-group" style="display: none;">
+            <label>User Standing Height (Feet &amp; Inches)</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <input type="number" id="heightFtInput" class="form-control" placeholder="Feet" value="5" min="3" max="7">
+              <input type="number" id="heightInInput" class="form-control" placeholder="Inches" value="8" min="0" max="11">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="postureWorkstyle">Primary Work Setting</label>
+            <select id="postureWorkstyle" class="form-control">
+              <option value="seated">Seated Desk Work (Standard Office Chair)</option>
+              <option value="standing">Sit-to-Stand Height Adjustable Desk</option>
+              <option value="laptop">Laptop / Dual Monitor Setup</option>
+            </select>
+          </div>
+
+          <!-- Ergonomic Golden Rules Checklist -->
+          <div style="background: rgba(18, 9, 36, 0.7); border: 1px solid var(--border-purple); border-radius: var(--radius-md); padding: 16px; margin-top: 20px;">
+            <h5 style="color: var(--accent-lavender); font-size: 0.85rem; margin-bottom: 8px;">
+              <i class="fa-solid fa-list-check"></i> Clinical Ergonomic Rules:
+            </h5>
+            <ul style="font-size: 0.8rem; color: var(--text-lavender); padding-left: 20px; line-height: 1.6;">
+              <li>Elbows bent at 90° - 100° resting comfortably on desk.</li>
+              <li>Top 1/3 of monitor screen exactly at or slightly below eye level.</li>
+              <li>Feet resting flat on the floor with knees at a 90° angle.</li>
+              <li>Monitor placed 50-70 cm (approx. arm's length) from eyes.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Calculated Ergonomic Outputs & Dynamic Visual Diagram -->
+        <div class="glass-card" style="padding: 24px;">
+          <h3 style="margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between;">
+            <span><i class="fa-solid fa-sliders text-gradient-purple"></i> Your Tailored Dimensions</span>
+            <span class="badge badge-purple" id="ergoHeightBadge">Height: 172 cm (5'8")</span>
+          </h3>
+
+          <div class="ergo-results-grid">
+            <div class="ergo-result-box">
+              <div class="ergo-result-icon"><i class="fa-solid fa-chair"></i></div>
+              <h5>Seat Cushion Height</h5>
+              <div class="ergo-result-val" id="resChairHeight">43 cm</div>
+              <div class="ergo-result-desc">Floor to top of seat cushion (knees bent 90°)</div>
+            </div>
+
+            <div class="ergo-result-box">
+              <div class="ergo-result-icon"><i class="fa-solid fa-table"></i></div>
+              <h5>Seated Desk Height</h5>
+              <div class="ergo-result-val" id="resDeskHeight">69 cm</div>
+              <div class="ergo-result-desc">Floor to keyboard tray / tabletop level</div>
+            </div>
+
+            <div class="ergo-result-box">
+              <div class="ergo-result-icon"><i class="fa-solid fa-person"></i></div>
+              <h5>Standing Desk Height</h5>
+              <div class="ergo-result-val" id="resStandingDesk">108 cm</div>
+              <div class="ergo-result-desc">Floor to desk surface when working standing up</div>
+            </div>
+
+            <div class="ergo-result-box">
+              <div class="ergo-result-icon"><i class="fa-solid fa-desktop"></i></div>
+              <h5>Monitor Eye Level</h5>
+              <div class="ergo-result-val" id="resMonitorDist">50 - 70 cm</div>
+              <div class="ergo-result-desc">Distance from eyes to screen (arm's length)</div>
+            </div>
+          </div>
+
+          <!-- Dynamic Ergonomic SVG Diagram -->
+          <div class="ergo-visual-diagram-card">
+            <svg class="ergo-diagram-svg" viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#7C3AED"/>
+                  <stop offset="100%" stop-color="#A78BFA"/>
+                </linearGradient>
+                <linearGradient id="deskGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#2D1754"/>
+                  <stop offset="100%" stop-color="#3F2275"/>
+                </linearGradient>
+              </defs>
+
+              <!-- Floor Line -->
+              <line x1="40" y1="280" x2="560" y2="280" stroke="#7C3AED" stroke-width="2" stroke-dasharray="4"/>
+              <text x="50" y="298" fill="#9F82D3" font-size="12" font-weight="600">Reference Floor Level</text>
+
+              <!-- Desk -->
+              <rect x="360" y="160" width="160" height="12" rx="3" fill="url(#deskGrad)" stroke="#A78BFA" stroke-width="1.5"/>
+              <!-- Desk Legs -->
+              <rect x="380" y="172" width="10" height="108" fill="#2D1754" stroke="#7C3AED" stroke-width="1"/>
+              <rect x="490" y="172" width="10" height="108" fill="#2D1754" stroke="#7C3AED" stroke-width="1"/>
+
+              <!-- Monitor -->
+              <rect x="440" y="80" width="12" height="70" rx="3" fill="#A78BFA"/>
+              <rect x="446" y="85" width="4" height="60" fill="#120924"/>
+              <polygon points="440,150 460,160 420,160" fill="#7C3AED"/>
+              <!-- Eye-Level Sightline -->
+              <line x1="220" y1="88" x2="440" y2="88" stroke="#10B981" stroke-width="2" stroke-dasharray="3"/>
+              <circle cx="440" cy="88" r="4" fill="#10B981"/>
+              <text x="280" y="78" fill="#10B981" font-size="11" font-weight="700">Eye-Level Top 1/3 (0° - 15°)</text>
+
+              <!-- Chair -->
+              <path d="M 170 120 L 170 215 L 245 215" fill="none" stroke="#A78BFA" stroke-width="6" stroke-linecap="round"/>
+              <rect x="200" y="215" width="12" height="65" fill="#7C3AED"/>
+              <line x1="170" y1="280" x2="240" y2="280" stroke="#A78BFA" stroke-width="6" stroke-linecap="round"/>
+
+              <!-- Seated Person Silhouette -->
+              <!-- Head -->
+              <circle cx="210" cy="88" r="16" fill="url(#purpleGrad)"/>
+              <!-- Torso -->
+              <line x1="210" y1="104" x2="210" y2="210" stroke="url(#purpleGrad)" stroke-width="14" stroke-linecap="round"/>
+              <!-- Thigh -->
+              <line x1="210" y1="210" x2="280" y2="210" stroke="url(#purpleGrad)" stroke-width="12" stroke-linecap="round"/>
+              <!-- Shin -->
+              <line x1="280" y1="210" x2="280" y2="280" stroke="url(#purpleGrad)" stroke-width="12" stroke-linecap="round"/>
+              <!-- Foot flat -->
+              <line x1="280" y1="280" x2="310" y2="280" stroke="#C4B5FD" stroke-width="8" stroke-linecap="round"/>
+
+              <!-- Arm (Elbow 90 deg) -->
+              <line x1="210" y1="130" x2="260" y2="160" stroke="#C4B5FD" stroke-width="7" stroke-linecap="round"/>
+              <line x1="260" y1="160" x2="380" y2="160" stroke="#C4B5FD" stroke-width="7" stroke-linecap="round"/>
+
+              <!-- Dimension Callout 1: Chair Height -->
+              <line x1="150" y1="215" x2="150" y2="280" stroke="#F472B6" stroke-width="1.5"/>
+              <line x1="145" y1="215" x2="155" y2="215" stroke="#F472B6" stroke-width="1.5"/>
+              <line x1="145" y1="280" x2="155" y2="280" stroke="#F472B6" stroke-width="1.5"/>
+              <text x="65" y="252" fill="#F472B6" font-size="11" font-weight="700">Seat: <tspan id="svgSeatHeight">43 cm</tspan></text>
+
+              <!-- Dimension Callout 2: Desk Height -->
+              <line x1="535" y1="160" x2="535" y2="280" stroke="#A78BFA" stroke-width="1.5"/>
+              <line x1="530" y1="160" x2="540" y2="160" stroke="#A78BFA" stroke-width="1.5"/>
+              <line x1="530" y1="280" x2="540" y2="280" stroke="#A78BFA" stroke-width="1.5"/>
+              <text x="542" y="225" fill="#A78BFA" font-size="11" font-weight="700">Desk: <tspan id="svgDeskHeight">69 cm</tspan></text>
+            </svg>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         TAB 3: INSTANT CLINICAL REPORT & EXERCISE PLAN
+         ======================================================================== -->
+    <section id="pane-report" class="tab-pane" role="tabpanel">
+      <div class="report-page-container">
+        
+        <!-- Report Action Bar -->
+        <div class="report-actions-header">
+          <div>
+            <h2 style="font-size: 1.4rem;">Clinical Postural Assessment Report</h2>
+            <p style="font-size: 0.86rem; color: var(--text-muted);">
+              Official tele-health biomechanical diagnostic summary generated by AST Posture Clinic.
+            </p>
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button id="downloadReportBtn" class="btn btn-secondary">
+              <i class="fa-solid fa-print"></i> Download / Print Report
+            </button>
+            <button id="whatsappReportBtn" class="btn btn-whatsapp">
+              <i class="fa-brands fa-whatsapp"></i> Send to Dr. Tahira Nihal
+            </button>
+          </div>
+        </div>
+
+        <!-- Printable / Branded Clinical Report Card -->
+        <div class="clinical-report-card" id="printableReportCard">
+          
+          <!-- Report Header -->
+          <div class="clinical-report-header">
+            <div class="report-brand-badge">
+              <div class="brand-logo-icon">
+                <i class="fa-solid fa-person-walking"></i>
+              </div>
+              <div>
+                <h2>AST Posture Clinic</h2>
+                <p style="font-size: 0.82rem; color: var(--accent-lavender);">
+                  Clinical Postural &amp; Musculoskeletal Health Unit
+                </p>
+                <p style="font-size: 0.75rem; color: var(--text-muted);">
+                  Developed by Abiha &amp; Sumaiya | Clinical Lead: Dr. Tahira Nihal
+                </p>
+              </div>
+            </div>
+            <div class="report-meta-info">
+              <div><strong>Report ID:</strong> <span id="repReportId">AST-REP-9104</span></div>
+              <div><strong>Scan Date:</strong> <span id="repScanDate">18-Nov-2026, 21:30</span></div>
+              <div><strong>Status:</strong> <span class="badge badge-purple" id="repScanStatus">Completed</span></div>
+            </div>
+          </div>
+
+          <!-- Patient Profile Snapshot Bar -->
+          <div class="report-patient-summary">
+            <div class="patient-data-item">
+              <div class="label">Patient Name</div>
+              <div class="val" id="repPatientName">Abiha Khan</div>
+            </div>
+            <div class="patient-data-item">
+              <div class="label">Age</div>
+              <div class="val" id="repPatientAge">24 yrs</div>
+            </div>
+            <div class="patient-data-item">
+              <div class="label">Gender</div>
+              <div class="val" id="repPatientGender">Female</div>
+            </div>
+            <div class="patient-data-item">
+              <div class="label">Assessment Type</div>
+              <div class="val">AI Kinematic Scan</div>
+            </div>
+          </div>
+
+          <!-- Main Diagnostic Findings & Snapshot -->
+          <div class="report-findings-layout">
+            <!-- Captured Snapshot Frame -->
+            <div class="report-snapshot-box">
+              <canvas id="reportSnapshotCanvas" width="400" height="300" style="display: none;"></canvas>
+              <img id="reportSnapshotImg" class="report-snapshot-img" alt="Captured posture scan snapshot" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23120924'/><text x='50%25' y='50%25' fill='%23A78BFA' font-family='sans-serif' font-size='14' text-anchor='middle'>Snapshot will appear after scan capture</text></svg>">
+            </div>
+
+            <!-- Score & Biomechanical Angles Table -->
+            <div class="report-score-box">
+              <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(167, 139, 250, 0.15); padding-bottom: 12px;">
+                <div>
+                  <h4 style="font-size: 1.1rem; color: #FFFFFF;">Overall Posture Score</h4>
+                  <p style="font-size: 0.8rem; color: var(--text-muted);" id="repScoreDesc">Clinical functional grade</p>
+                </div>
+                <div style="display: flex; align-items: baseline; gap: 4px;">
+                  <span style="font-size: 2.4rem; font-weight: 800; color: #FFFFFF;" id="repScoreHuge">72</span>
+                  <span style="font-size: 1rem; color: var(--accent-lavender); font-weight: 700;">/ 100</span>
+                </div>
+              </div>
+
+              <table class="report-metrics-table">
+                <thead>
+                  <tr>
+                    <th>Biomechanical Parameter</th>
+                    <th>Measured Angle</th>
+                    <th>Normal Baseline</th>
+                    <th>Clinical Grade</th>
+                  </tr>
+                </thead>
+                <tbody id="repMetricsTableBody">
+                  <tr>
+                    <td><strong>Neck Forward Tilt (Tech-Neck)</strong></td>
+                    <td id="repNeckAngle">24°</td>
+                    <td>&lt; 12°</td>
+                    <td><span class="badge badge-red" id="repNeckBadge">Needs Correction</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Cervical Spine Extra Load</strong></td>
+                    <td id="repCervicalLoad">+11.2 kg</td>
+                    <td>0 kg (5 kg head weight)</td>
+                    <td><span class="badge badge-yellow" id="repLoadBadge">Mild Strain</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Shoulder Level (Tilt Angle)</strong></td>
+                    <td id="repShoulderAngle">4.8°</td>
+                    <td>&lt; 3°</td>
+                    <td><span class="badge badge-yellow" id="repShoulderBadge">Mild Tilt</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Torso / Hip Plumb Deviation</strong></td>
+                    <td id="repTorsoAngle">3.2°</td>
+                    <td>&lt; 4°</td>
+                    <td><span class="badge badge-green" id="repTorsoBadge">Good Alignment</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tailored Corrective Exercises Plan -->
+          <div class="exercises-section">
+            <h3 class="section-title">
+              <i class="fa-solid fa-dumbbell"></i>
+              Tailored Posture Correction &amp; Rehabilitation Routine
+            </h3>
+            <div class="exercise-cards-grid" id="exerciseCardsContainer">
+              <!-- Dynamically populated 3 exercises based on scan findings -->
+            </div>
+          </div>
+
+          <!-- Doctor's Clinical Prescription & Notes Box (Editable) -->
+          <div class="doctor-prescription-box">
+            <div class="rx-header">
+              <h4>
+                <i class="fa-solid fa-stethoscope"></i>
+                Doctor's Clinical Notes &amp; Ergonomic Prescription
+              </h4>
+              <span class="badge badge-purple"><i class="fa-solid fa-user-md"></i> Dr. Tahira Nihal</span>
+            </div>
+            <textarea id="doctorNotesInput" class="doctor-notes-textarea" placeholder="Dr. Tahira Nihal's clinical recommendations: e.g. Patient exhibits forward cervical translation with bilateral rounded shoulders. Recommended 3x daily chin tucks and scapular retractions. Reassess in 14 days.">Patient shows moderate Forward Head Posture (Tech-Neck) with compensatory cervical spine strain. Recommended to perform Chin Tucks and Doorway Pectoral Stretches twice daily. Follow ergonomic monitor height adjustments and schedule follow-up tele-health review.</textarea>
+            
+            <div class="rx-footer">
+              <div class="doctor-signature">
+                Verified by <strong>Dr. Tahira Nihal</strong> | Lead Physiotherapist &amp; Posture Specialist
+              </div>
+              <button id="saveNotesBtn" class="btn btn-secondary btn-sm">
+                <i class="fa-solid fa-floppy-disk"></i> Save Doctor's Notes
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         TAB 4: ONLINE DOCTOR CONSULTATION MODULE (DR. TAHIRA NIHAL)
+         ======================================================================== -->
+    <section id="pane-consult" class="tab-pane" role="tabpanel">
+      <div class="consultation-layout">
+        
+        <!-- Dr. Tahira Nihal Profile Card -->
+        <div class="doctor-profile-card glass-card">
+          <div class="doctor-avatar-wrapper">
+            <div class="doctor-avatar-circle">
+              <!-- Clean professional avatar graphic -->
+              <svg class="doctor-avatar-img" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                <rect width="120" height="120" fill="#1E1038"/>
+                <circle cx="60" cy="45" r="24" fill="#F472B6"/>
+                <path d="M 24 105 Q 60 75 96 105 Z" fill="#7C3AED"/>
+                <path d="M 52 40 Q 60 46 68 40" stroke="#FFFFFF" stroke-width="2" fill="none"/>
+                <!-- Stethoscope graphic -->
+                <path d="M 46 72 Q 40 85 50 94 Q 60 100 70 94 Q 80 85 74 72" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+                <circle cx="60" cy="98" r="4" fill="#A78BFA"/>
+              </svg>
+            </div>
+            <div class="doctor-status-badge">
+              <span class="pulse-dot"></span> Online Now
+            </div>
+          </div>
+
+          <h3>Dr. Tahira Nihal</h3>
+          <div class="doctor-role">Lead Physiotherapist &amp; Posture Specialist</div>
+          <div class="doctor-dept">AST Posture Clinic • 12+ Years Clinical Experience</div>
+
+          <div class="doctor-bio">
+            Specializes in biomechanical postural restoration, tech-neck reversal, and ergonomic spinal alignment. Dr. Tahira Nihal reviews your real-time scan data to design customized corrective rehabilitation plans.
+          </div>
+
+          <div class="doctor-quick-actions">
+            <!-- Direct WhatsApp with Auto Pre-filled Formatted Message -->
+            <button id="directWhatsAppBtn" class="btn btn-whatsapp">
+              <i class="fa-brands fa-whatsapp"></i> Chat on WhatsApp with Dr. Tahira
+            </button>
+
+            <!-- Direct Call Button -->
+            <a href="tel:+923450303308" class="btn btn-secondary" style="width: 100%; justify-content: center;">
+              <i class="fa-solid fa-phone"></i> Call Dr. Tahira Nihal (+92 345 0303308)
+            </a>
+          </div>
+        </div>
+
+        <!-- In-App Appointment Booking Card -->
+        <div class="appointment-booking-card glass-card">
+          <div class="booking-form-header">
+            <h3>
+              <i class="fa-solid fa-calendar-check text-gradient-purple"></i>
+              Book Tele-Health Consultation with Dr. Tahira Nihal
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
+              Schedule a 1-on-1 virtual or in-clinic posture review session. An instant confirmation slip with token will be generated.
+            </p>
+          </div>
+
+          <form id="appointmentForm">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bookPatientName">Patient Full Name</label>
+                <input type="text" id="bookPatientName" class="form-control" required value="Abiha Khan">
+              </div>
+              <div class="form-group">
+                <label for="bookPhone">Contact / WhatsApp Number</label>
+                <input type="tel" id="bookPhone" class="form-control" placeholder="+92 300 1234567" required value="+92 300 1234567">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bookDate">Preferred Date</label>
+                <input type="date" id="bookDate" class="form-control" required>
+              </div>
+              <div class="form-group">
+                <label for="bookTime">Preferred Time Slot</label>
+                <select id="bookTime" class="form-control" required>
+                  <option value="11:00 AM - 11:30 AM">11:00 AM - 11:30 AM</option>
+                  <option value="02:00 PM - 02:30 PM">02:00 PM - 02:30 PM</option>
+                  <option value="05:00 PM - 05:30 PM" selected>05:00 PM - 05:30 PM</option>
+                  <option value="08:00 PM - 08:30 PM">08:00 PM - 08:30 PM</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bookPainLevel">Current Pain / Discomfort Level</label>
+                <select id="bookPainLevel" class="form-control">
+                  <option value="Mild Discomfort (1-3)">Mild Discomfort (Occasional stiffness)</option>
+                  <option value="Moderate Strain (4-6)" selected>Moderate Strain (Neck / Upper back pain)</option>
+                  <option value="Severe Pain (7-10)">Severe Pain (Headaches / Nerve pinch)</option>
+                  <option value="No Pain (Preventive Routine)">No Pain (General posture improvement)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="bookConsultType">Consultation Mode</label>
+                <select id="bookConsultType" class="form-control">
+                  <option value="WhatsApp Video Tele-Health" selected>WhatsApp Video Tele-Health</option>
+                  <option value="In-Clinic Physical Assessment">In-Clinic Physical Assessment</option>
+                  <option value="Detailed Digital Report Review">Detailed Digital Report Review</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="bookNotes">Symptoms, Medical History or Questions for Dr. Tahira</label>
+              <textarea id="bookNotes" class="form-control" rows="3" placeholder="Describe when the stiffness occurs, work hours sitting, previous spine injuries, etc.">Experiencing neck stiffness after 6+ hours of laptop work daily. Forward head posture observed during AST Posture Clinic scan.</textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px;">
+              <i class="fa-solid fa-ticket"></i> Confirm Appointment &amp; Generate Token Slip
+            </button>
+          </form>
+
+          <!-- Generated Appointment Confirmation Slip -->
+          <div id="appointmentSlipCard" class="confirmation-slip-card">
+            <div class="slip-header">
+              <div>
+                <h4 style="font-size: 1.1rem; color: #FFFFFF;">Appointment Confirmed!</h4>
+                <p style="font-size: 0.82rem; color: var(--accent-lavender);">AST Posture Clinic Tele-Health Registry</p>
+              </div>
+              <div class="token-badge" id="slipTokenNum">AST-TN-8492</div>
+            </div>
+
+            <div class="slip-details-grid">
+              <div class="patient-data-item">
+                <div class="label">Consultant</div>
+                <div class="val" style="color: #F472B6;">Dr. Tahira Nihal</div>
+              </div>
+              <div class="patient-data-item">
+                <div class="label">Patient Name</div>
+                <div class="val" id="slipPatientName">Abiha Khan</div>
+              </div>
+              <div class="patient-data-item">
+                <div class="label">Scheduled Slot</div>
+                <div class="val" id="slipScheduledSlot">Tomorrow, 05:00 PM</div>
+              </div>
+              <div class="patient-data-item">
+                <div class="label">Mode</div>
+                <div class="val" id="slipMode">WhatsApp Video Tele-Health</div>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button id="slipWhatsAppShareBtn" class="btn btn-whatsapp btn-sm">
+                <i class="fa-brands fa-whatsapp"></i> Send Slip Details to Dr. Tahira
+              </button>
+              <button id="slipPrintBtn" class="btn btn-secondary btn-sm" onclick="window.print()">
+                <i class="fa-solid fa-print"></i> Print Slip
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================
+         TAB 5: SCAN HISTORY (LOCALSTORAGE)
+         ======================================================================== -->
+    <section id="pane-history" class="tab-pane" role="tabpanel">
+      <div class="history-container">
+        <div class="history-header">
+          <div>
+            <h2>Saved Patient Postural Scans</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">
+              Historical kinematic records stored locally in your browser.
+            </p>
+          </div>
+          <button id="clearHistoryBtn" class="btn btn-secondary btn-sm">
+            <i class="fa-solid fa-trash-can"></i> Clear History
+          </button>
+        </div>
+
+        <div id="historyListContainer" class="history-list">
+          <!-- Populated by JS -->
+          <div class="empty-history-state" id="emptyHistoryState">
+            <i class="fa-solid fa-folder-open"></i>
+            <p>No past posture scans recorded yet. Perform a scan in the Live AI Scanner tab and click "Capture &amp; Generate Report".</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==========================================================================
+       Notification Toast Container
+       ========================================================================== -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- ==========================================================================
+       Footer
+       ========================================================================== -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-credit">
+        AST Posture Clinic — Developed by <span class="team-names">Abiha &amp; Sumaiya</span> | Clinical Lead: <span class="doctor-name">Dr. Tahira Nihal</span>
+      </div>
+      <div>
+        <span>AI Computer Vision Engine Powered by Google MediaPipe Pose</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
