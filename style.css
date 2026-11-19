@@ -1924,14 +1924,14 @@ a:hover {
 .crop-studio-dialog {
   width: 100%;
   max-width: 920px;
-  max-height: 94vh;
+  max-height: 95vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
   border: 1px solid var(--border-purple-glow);
   box-shadow: 0 15px 50px rgba(0, 0, 0, 0.75), var(--shadow-purple-glow);
   border-radius: var(--radius-lg);
-  overflow: hidden;
 }
 
 .crop-studio-header {
