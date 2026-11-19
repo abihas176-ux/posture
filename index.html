@@ -34,10 +34,9 @@
         </div>
         <div class="brand-info">
           <h1>AST Posture Clinic</h1>
-       <div class="brand-subtitle">
-  AI Orthopedic & Biomechanical Suite • Developed by <span>Abiha - GOVT Girls High School Latifabad Unit 6 Hyderabad , Sindh</span>
-</div>
-
+          <div class="brand-subtitle">
+            AI Orthopedic & Biomechanical Suite • Developed by <span>Abiha GOVT Girls High School Latifabad Unit:6</span>
+          </div>
         </div>
       </div>
 
@@ -188,6 +187,14 @@
           <button id="startCameraBtn" class="btn btn-primary">
             <i class="fa-solid fa-video"></i> Start Live Camera
           </button>
+
+          <button id="switchCameraBtn" class="btn btn-secondary" title="Switch between Front / Back camera or connected webcams">
+            <i class="fa-solid fa-camera-rotate"></i> Switch Camera
+          </button>
+
+          <button id="takePhotoBtn" class="btn btn-pink" style="display: none;" title="Capture current frame &amp; open Crop &amp; Edit Studio">
+            <i class="fa-solid fa-camera"></i> Take Photo
+          </button>
           
           <label class="btn btn-secondary" for="photoUploadInput" style="cursor: pointer;">
             <i class="fa-solid fa-file-arrow-up"></i> Upload Full-Body Photo
@@ -224,7 +231,7 @@
             <span class="switch-slider"></span>
             <span><i class="fa-solid fa-ruler-vertical"></i> Plumb Line</span>
           </label>
-        </div>
+        </div>  
       </div>
 
       <!-- Main Scanner Layout (Canvas + Sidebar Metrics) -->
@@ -239,6 +246,9 @@
 
           <!-- HTML5 Canvas Overlay (Skeletal Neon Tracking & Plumb Line) -->
           <canvas id="poseCanvas"></canvas>
+
+          <!-- Camera Shutter Flash Overlay -->
+          <div id="cameraFlashOverlay" class="camera-flash-overlay"></div>
 
           <!-- HUD Top Overlay -->
           <div class="canvas-hud-top">
@@ -582,7 +592,7 @@
                   Clinical Postural &amp; Musculoskeletal Health Unit
                 </p>
                 <p style="font-size: 0.75rem; color: var(--text-muted);">
-                  Developed by Abiha &amp; Sumaiya | Clinical Lead: Dr. Tahira Nihal
+                  Developed by Abiha GOVT Girls High School Latifabad Unit:6 | Clinical Lead: Dr. Tahira Nihal
                 </p>
               </div>
             </div>
@@ -900,6 +910,98 @@
   </main>
 
   <!-- ==========================================================================
+       Photo Crop & Edit Studio Modal (Post-Capture & Gallery Upload)
+       ========================================================================== -->
+  <div id="cropStudioModal" class="crop-studio-modal" role="dialog" aria-modal="true" aria-labelledby="cropStudioTitle">
+    <div class="crop-studio-dialog glass-card">
+      <div class="crop-studio-header">
+        <div class="crop-studio-title">
+          <i class="fa-solid fa-crop-simple text-gradient-purple"></i>
+          <div>
+            <h3 id="cropStudioTitle">Photo Crop &amp; Edit Studio</h3>
+            <p>Frame subject from head to ankles &amp; optimize lighting for precise AI posture tracking</p>
+          </div>
+        </div>
+        <button id="closeCropStudioBtn" class="crop-close-btn" title="Close Studio" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="crop-studio-body">
+        <!-- Toolbar Controls -->
+        <div class="crop-toolbar">
+          <div class="crop-toolbar-group">
+            <button id="cropRotateBtn" class="btn btn-secondary btn-sm" title="Rotate 90° Clockwise">
+              <i class="fa-solid fa-rotate-right"></i> Rotate 90°
+            </button>
+            <button id="cropAspectFreeBtn" class="btn btn-secondary btn-sm active" title="Free Form Crop">
+              <i class="fa-solid fa-vector-square"></i> Free Crop
+            </button>
+            <button id="cropAspect34Btn" class="btn btn-secondary btn-sm" title="3:4 Full Body Portrait Ratio">
+              <i class="fa-solid fa-mobile-screen"></i> 3:4 Body
+            </button>
+            <button id="cropResetBtn" class="btn btn-secondary btn-sm" title="Reset all edits">
+              <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+            </button>
+          </div>
+
+          <div class="crop-toolbar-sliders">
+            <div class="slider-control">
+              <label for="cropBrightness"><i class="fa-solid fa-sun"></i> Brightness: <span id="brightVal">100%</span></label>
+              <input type="range" id="cropBrightness" min="50" max="180" value="100">
+            </div>
+            <div class="slider-control">
+              <label for="cropContrast"><i class="fa-solid fa-circle-half-stroke"></i> Contrast: <span id="contrastVal">100%</span></label>
+              <input type="range" id="cropContrast" min="50" max="180" value="100">
+            </div>
+          </div>
+        </div>
+
+        <!-- Crop Workspace Container -->
+        <div class="crop-workspace-container" id="cropWorkspace">
+          <canvas id="cropSourceCanvas"></canvas>
+          
+          <!-- Interactive Crop Selection Box -->
+          <div id="cropBox" class="crop-box">
+            <div class="crop-grid-lines"></div>
+            <!-- 8 Resizing Handles -->
+            <div class="crop-handle handle-nw" data-handle="nw"></div>
+            <div class="crop-handle handle-ne" data-handle="ne"></div>
+            <div class="crop-handle handle-se" data-handle="se"></div>
+            <div class="crop-handle handle-sw" data-handle="sw"></div>
+            <div class="crop-handle handle-n" data-handle="n"></div>
+            <div class="crop-handle handle-e" data-handle="e"></div>
+            <div class="crop-handle handle-s" data-handle="s"></div>
+            <div class="crop-handle handle-w" data-handle="w"></div>
+          </div>
+        </div>
+
+        <div class="crop-hint-bar">
+          <i class="fa-solid fa-arrows-up-down-left-right text-gradient-purple"></i>
+          <span>Drag the box to position or use the handles to resize. Ensure full body (head to feet) is inside the selection.</span>
+        </div>
+      </div>
+
+      <!-- Modal Action Buttons -->
+      <div class="crop-studio-footer">
+        <div class="crop-footer-left">
+          <button id="cropRetakeBtn" class="btn btn-secondary">
+            <i class="fa-solid fa-camera"></i> Retake Photo
+          </button>
+        </div>
+        <div class="crop-footer-right">
+          <button id="cropDownloadBtn" class="btn btn-secondary">
+            <i class="fa-solid fa-download"></i> Download Photo
+          </button>
+          <button id="cropApplyBtn" class="btn btn-primary">
+            <i class="fa-solid fa-check-double"></i> Apply &amp; Scan Posture
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
        Notification Toast Container
        ========================================================================== -->
   <div id="toastContainer" class="toast-container"></div>
@@ -909,8 +1011,8 @@
        ========================================================================== -->
   <footer class="site-footer">
     <div class="footer-inner">
-     <div class="footer-credit">
-        AST Posture Clinic — Developed by <span class="team-names">Abiha — GOVT Girls High School Latifabad Unit 6 Hyderabad , Sindh</span> | Clinical Lead: <span class="doctor-name">Dr. Tahira Nihal</span>
+      <div class="footer-credit">
+        AST Posture Clinic — Developed by <span class="team-names">Abiha GOVT Girls High School Latifabad Unit:6</span> | Clinical Lead: <span class="doctor-name">Dr. Tahira Nihal</span>
       </div>
       <div>
         <span>AI Computer Vision Engine Powered by Google MediaPipe Pose</span>
